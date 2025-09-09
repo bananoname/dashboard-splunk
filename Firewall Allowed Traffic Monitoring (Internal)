@@ -1,0 +1,183 @@
+<form version="1.1" theme="dark">
+  <label>Firewall Allowed Traffic Monitoring (Internal)</label>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label></label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <single>
+        <title>Source Zones of Allowed Traffic</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" src_zone=* | stats count by src_zone</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Allowed Traffic Breakdown by Protocol</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" protocol!=ICMP | stats count by protocol</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <chart>
+        <title>Top Applications Accessed</title>
+        <search>
+          <query>index=sophos_firewall app_name IN ("telegram", "sharepoint", "smtp", "dns", "*teams", "windows update", "facebook*", "tiktok") | top limit=10 app_name</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Most Used Firewall Rules (Allowed)</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" | stats count by fw_rule_name | sort - count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>Top 10 Source IPs (Allowed Traffic)</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" | stats count by src_ip | sort - count | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>Top 10 Destination IPs (Allowed Traffic)</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" | stats count by dst_ip | sort - count | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Top 10 Source IPs by Data Volume</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" | stats sum(sent_bytes) as "Sent Bytes", sum(recv_bytes) as "Received Bytes" by src_ip | sort - "Sent Bytes" | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>Top 10 Destination IPs by Data Volume</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Allowed" | stats sum(sent_bytes) as "Sent Bytes", sum(recv_bytes) as "Received Bytes" by dst_ip | sort - "Sent Bytes" | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <chart>
+        <title>Top 10 Source IPs (Denied Attempts)</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Denied" | stats count by src_ip | sort - count | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+    <panel>
+      <chart>
+        <title>Top 10 Destination IPs (Denied Attempts)</title>
+        <search>
+          <query>index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG" log_type="Firewall" log_subtype="Denied" | stats count by dst_ip | sort - count | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+<panel>
+  <chart>
+    <title>Traffic Over Time (MB)</title>
+    <search>
+      <query>
+        index="sophos_firewall" sourcetype="GLX-NGFW-01_LOG"
+        | eval total_bytes = bytes_sent + bytes_received
+        | eval total_mb = round(total_bytes/1024/1024,2)
+        | timechart span=5m sum(total_mb) as "Traffic (MB)"
+      </query>
+      <earliest>$time.earliest$</earliest>
+      <latest>$time.latest$</latest>     
+    </search>
+    <option name="charting.chart">area</option>
+    <option name="charting.areaFillOpacity">0.6</option>
+    <option name="charting.axisTitleX.visibility">collapsed</option>
+    <option name="charting.axisTitleY.visibility">collapsed</option>
+    <option name="charting.legend.placement">none</option>
+  </chart>
+</panel>
+
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Latest 10 Firewall Connections (All Rules)</title>
+        <search>
+          <query>index=sophos_firewall sourcetype="*" | where log_type="Firewall" AND log_component="Firewall Rule" | table _time src_ip src_trans_ip dst_ip dst_port app_name bytes_sent bytes_received fw_rule_name classification | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>New Connection Statistics by Client &amp; Destination</title>
+
+        <search>
+          <query>index=sophos_firewall sourcetype="*" | where classification="New" AND log_type="Firewall" | stats count by src_ip dst_ip app_name fw_rule_name</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Recent Firewall Admin Changes (Last 10)</title>
+        <search>
+          <query>index=sophos_firewall sourcetype=GLX-NGFW-01_LOG | search log_type="Event" AND log_subtype="Admin" AND status="Successful" | rex field=message "was (?&lt;action&gt;\w+) by '(?&lt;user&gt;\w+)' from '(?&lt;src_ip&gt;[\d\.]+)'" | eval log_time=strftime(_time, "%Y-%m-%d %H:%M:%S") | table log_time user action src_ip message | rename log_time as "Time", user as "User", action as "Action", src_ip as "Source IP", message as "Details" | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</form>
