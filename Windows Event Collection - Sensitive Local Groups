@@ -1,0 +1,43 @@
+<form version="1.1" theme="light">
+  <label>Windows Event Collection - Sensitive Local Groups</label>
+  <description>Filtered search for modification of sensitive local groups.</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Group Modification Activities</title>
+        <search>
+          <query>index="windows_server" (EventCode=4728 OR EventCode=4729 OR EventCode=4732 OR EventCode=4733 OR EventCode=4756 OR EventCode=4757)
+          | rex Message="(?&lt;EventDescription&gt;.*)\." 
+          | eval source_user=mvindex(Account_Name, 0) 
+          | eval affected_user=mvindex(Security_ID,1) 
+          | eval Time=strftime(_time,"%m/%d/%Y%H:%M:%S") 
+          | table Time, source_user, affected_user, ComputerName,Group_Name, EventDescription 
+          | sort - Time 
+          | rename source_user as "Changed_By" affected_user as "Affected_User" status as "Action_Taken" 
+          | search NOT (Changed_By="*$")</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
