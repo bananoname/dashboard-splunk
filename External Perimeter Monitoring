@@ -1,0 +1,243 @@
+<form version="1.1" theme="dark">
+  <label>External Perimeter Monitoring</label>
+  <description>Monitor inbound traffic to your public IPs, excluding private/LAN sources.</description>
+  <!-- ===== Base search ===== -->
+  <search id="base">
+    <query>
+      <![CDATA[
+index=sophos_firewall
+| where dst_ip IN ($wan_ips$)
+| where NOT match(src_ip, "^(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|127\\.|169\\.254\\.)")
+| eval status=coalesce(log_subtype, "Unknown")
+| where isnotnull(src_ip) AND src_ip!=""
+      ]]>
+    </query>
+    <earliest>$time.earliest$</earliest>
+    <latest>$time.latest$</latest>
+  </search>
+  <!-- ===== ROW 1: KPI single values ===== -->
+  <!-- ===== ROW 2: Top attackers & Allow vs Deny ===== -->
+  <!-- ===== ROW 3: Trend & Protocol breakdown ===== -->
+  <!-- ===== ROW 4: Geo & Status by destination ===== -->
+  <!-- ===== ROW 5: Raw table ===== -->
+  <!-- ===== ROW 6: Targeted destinations & ports (theo bộ lọc chung) ===== -->
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="multiselect" token="wan_ips" searchWhenChanged="true">
+      <label>WAN IPs</label>
+      <!-- Token mở rộng thành "ip1","ip2",... để dùng với IN ($wan_ips$) -->
+      <valuePrefix>"</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter>,</delimiter>
+      <choice value="210.211.109.173">210.211.109.173</choice>
+      <choice value="210.211.109.174">210.211.109.174</choice>
+      <choice value="210.211.109.175">210.211.109.175</choice>
+      <choice value="118.69.53.2">118.69.53.2</choice>
+      <default>210.211.109.173,210.211.109.174,210.211.109.175,118.69.53.2</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <single>
+        <title>Possible port scans (sources hitting multiple ports)</title>
+        <search>
+          <query>index=sophos_firewall 
+dst_ip IN ("210.211.109.173","210.211.109.174","210.211.109.175","118.69.53.2")
+| bin _time span=5m
+| stats dc(dst_port) AS unique_ports values(dst_port) AS ports count AS attempts BY src_ip _time
+| where unique_ports &gt; 10
+| sort - unique_ports
+| head 15</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Brute force attempts over time</title>
+        <search>
+          <query>index=sophos_firewall 
+dst_ip IN ("210.211.109.173","210.211.109.174","210.211.109.175","118.69.53.2")
+| where dst_port IN (22,21,25,110,143,389,443,465,587,993,995,3389) 
+| stats count AS attempts BY src_ip dst_port
+| where attempts &gt; 20
+| sort - attempts
+| head 15</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Total inbound events</title>
+      <single>
+        <search base="base">
+          <query>
+            <![CDATA[ | stats count AS total_events ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Unique source IPs</title>
+      <single>
+        <search base="base">
+          <query>
+            <![CDATA[ | stats dc(src_ip) AS unique_sources ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Deny ratio (%)</title>
+      <single>
+        <search base="base">
+          <query>
+            <![CDATA[
+| eventstats count AS total
+| stats count(eval(lower(status)="deny")) AS deny_count max(total) AS total
+| eval deny_ratio=if(total>0, round(100*deny_count/total,2), 0)
+| table deny_ratio
+            ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="unit">%</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Top 10 attacking source IPs</title>
+      <chart>
+        <search base="base">
+          <query>
+            <![CDATA[
+| eval src_country_safe=coalesce(src_country,"Unknown")
+| stats count AS attempts BY src_ip src_country_safe
+| sort - attempts
+| head 10
+            ]]>
+          </query>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.text">Attempts</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Allow vs Deny</title>
+      <chart>
+        <search base="base">
+          <query>
+            <![CDATA[ | stats count BY status ]]>
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Inbound volume over time by destination</title>
+      <chart>
+        <search base="base">
+          <query>
+            <![CDATA[ | timechart span=5m count BY dst_ip ]]>
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.text">Events</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Protocol breakdown (stacked)</title>
+      <chart>
+        <search base="base">
+          <query>
+            <![CDATA[ | timechart span=5m count BY protocol ]]>
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.text">Events</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Top 10 source countries by event count</title>
+      <chart>
+        <search base="base">
+          <query>
+            <![CDATA[
+| iplocation src_ip
+| eval country_name=coalesce(Country,"Unknown")
+| stats count AS events BY country_name
+| sort - events
+| head 10
+            ]]>
+          </query>
+        </search>
+        <option name="charting.axisTitleX.text">Events</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Country</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Status by destination (stacked)</title>
+      <chart>
+        <search base="base">
+          <query>
+            <![CDATA[ | stats count BY dst_ip status ]]>
+          </query>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.text">Events</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Recent inbound events (raw)</title>
+      <table>
+        <search base="base">
+          <query>
+            <![CDATA[
+| table _time dst_ip src_ip status protocol dst_port app_name action
+| sort - _time
+| head 20
+            ]]>
+          </query>
+        </search>
+        <option name="count">20</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>
