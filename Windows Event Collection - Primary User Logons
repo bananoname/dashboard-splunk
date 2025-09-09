@@ -1,0 +1,156 @@
+<form version="1.1" theme="light">
+  <label>Windows Event Collection - Primary User Logons</label>
+  <description>Filtered search for identifying non-administrative log on to servers.</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="text" token="computername" searchWhenChanged="true">
+      <label>Computer Name (FQDN)</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="text" token="workstationname" searchWhenChanged="true">
+      <label>Workstation Name</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="text" token="sourcenetworkaddress" searchWhenChanged="true">
+      <label>Source Network Address</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="text" token="username" searchWhenChanged="true">
+      <label>Username</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="dropdown" token="logontype" searchWhenChanged="true">
+      <label>Logon Type</label>
+      <choice value="Logon_Type=1">Interactive</choice>
+      <choice value="Logon_Type=2">Network</choice>
+      <choice value="Logon_Type=3">Batch</choice>
+      <choice value="Logon_Type=4">Service</choice>
+      <choice value="Logon_Type=5">Unlock</choice>
+      <choice value="Logon_Type=6">Network_Cleartext</choice>
+      <choice value="Logon_Type=7">New_Credentials</choice>
+      <choice value="Logon_Type=8">Remote_Interactive</choice>
+      <choice value="Logon_Type=9">Cached_Interactive</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="time" token="time" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <chart>
+        <title>Logons Trend (Graphic)</title>
+        <search>
+          <query>index="glxdt_windows_logs" EventCode=4624 NOT (Source_Network_Address="-"
+          OR Logon_Process="NtLmSsp"
+          OR Account_Name="$*" 
+          OR Account_Name="ANONYMOUS LOGON"
+          OR Account_Name="adm*")
+          | regex Account_Name!="\$$"
+          | eval LogonType=case(Logon_Type == 1,"Interactive", Logon_Type == 2,"Network", Logon_Type == 3,"Batch", Logon_Type == 4,"Service", Logon_Type == 5,"Unlock", Logon_Type == 6,"Network_Cleartext", Logon_Type == 7,"New_Credentials", Logon_Type == 8,"Remote_Interactive", Logon_Type == 9,"Cached_Interactive")
+          | eval Account_Domain=mvindex(Account_Domain, 1)
+          | eval Account_Name=mvindex(Account_Name, 1)
+          | search ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ LogonType=$logontype$ Account_Name=$username$
+          | timechart span=5m count by Account_Name</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Stats by Useraccount</title>
+        <search>
+          <query>index="glxdt_windows_logs"  EventCode=4624 NOT (Source_Network_Address="-"
+          OR Logon_Process="NtLmSsp" 
+          OR Account_Name="$*" 
+          OR Account_Name="ANONYMOUS LOGON"
+          OR Account_Name="adm*")
+          | regex Account_Name!="\$$"
+          | eval LogonType=case(Logon_Type == 1,"Interactive", Logon_Type == 2,"Network", Logon_Type == 3,"Batch", Logon_Type == 4,"Service", Logon_Type == 5,"Unlock", Logon_Type == 6,"Network_Cleartext", Logon_Type == 7,"New_Credentials", Logon_Type == 8,"Remote_Interactive", Logon_Type == 9,"Cached_Interactive")
+          | eval Account_Domain=mvindex(Account_Domain, 1)
+          | eval Account_Name=mvindex(Account_Name, 1)
+          | search ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ LogonType=$logontype$ Account_Name=$username$
+          | stats count(Source_Network_Address) as count by Account_Name
+          | sort - count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Stats by Domain</title>
+        <search>
+          <query>index="glxdt_windows_logs"  EventCode=4624 NOT (Source_Network_Address="-" 
+          OR Logon_Process="NtLmSsp"
+          OR Account_Name="$*" 
+          OR Account_Name="ANONYMOUS LOGON"
+          OR Account_Name="adm*")
+          | regex Account_Name!="\$$"
+          | eval LogonType=case(Logon_Type == 1,"Interactive", Logon_Type == 2,"Network", Logon_Type == 3,"Batch", Logon_Type == 4,"Service", Logon_Type == 5,"Unlock", Logon_Type == 6,"Network_Cleartext", Logon_Type == 7,"New_Credentials", Logon_Type == 8,"Remote_Interactive", Logon_Type == 9,"Cached_Interactive")
+          | rename Keywords AS Status
+          | search ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ LogonType=$logontype$ Account_Name=$username$
+          | stats count(Account_Name) as count by Account_Domain
+          | sort - count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Logon Activities</title>
+        <search>
+          <query>index="glxdt_windows_logs" EventCode=4624 NOT (Source_Network_Address="-" 
+          OR Logon_Process="NtLmSsp" 
+          OR Account_Name="$*"
+          OR Account_Name="ANONYMOUS LOGON"
+          OR Account_Name="adm*")
+          | regex Account_Name!="\$$"
+          | eval LogonType=case(Logon_Type == 1,"Interactive", Logon_Type == 2,"Network", Logon_Type == 3,"Batch", Logon_Type == 4,"Service", Logon_Type == 5,"Unlock", Logon_Type == 6,"Network_Cleartext", Logon_Type == 7,"New_Credentials", Logon_Type == 8,"Remote_Interactive", Logon_Type == 9,"Cached_Interactive")
+          | rename Keywords AS Status
+          | eval Account_Domain=mvindex(Account_Domain, 1)
+          | eval Account_Name=mvindex(Account_Name, 1)
+          | search ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ LogonType=$logontype$ Account_Name=$username$
+          | table _time,LogonType,Account_Domain,Account_Name,ComputerName,Source_Network_Address,Source_Port,Workstation_Name</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
