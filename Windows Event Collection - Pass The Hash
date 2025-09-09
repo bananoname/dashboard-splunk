@@ -1,0 +1,192 @@
+<form version="1.1" theme="light">
+  <label>Windows Event Collection - Pass The Hash</label>
+  <description>Filtered search for Pass The hash</description>
+  <!-- Gold Ticket Monitoring Panel -->
+  <!-- Statistics on Suspicious Kerberos Tickets -->
+  <!-- Detailed Gold Ticket Activities -->
+  <!-- Detailed Gold Ticket Activity -->
+  <fieldset submitButton="false" autoRun="true">
+    <input type="text" token="computername" searchWhenChanged="true">
+      <label>Computer Name (FQDN)</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="text" token="workstationname" searchWhenChanged="true">
+      <label>Workstation Name</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="text" token="sourcenetworkaddress" searchWhenChanged="true">
+      <label>Source Network Address</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="text" token="username" searchWhenChanged="true">
+      <label>Username</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="radio" token="auditstatus" searchWhenChanged="true">
+      <label>Audit Status</label>
+      <choice value="&quot;Audit Success&quot;">Audit Success</choice>
+      <choice value="&quot;Audit Failure&quot;">Audit Failure</choice>
+      <choice value="&quot;*&quot;">All</choice>
+      <default>"Audit Success"</default>
+      <initialValue>"Audit Success"</initialValue>
+    </input>
+    <input type="time" token="time" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <chart>
+        <title>Origin PtH Trend (Graphic)</title>
+        <search>
+          <query>index="glxdt_windows_logs"  (EventCode=4624 Logon_Type=3) OR (EventCode=4625 Logon_Type=3) Authentication_Package="NTLM" NOT Account_Name="ANONYMOUS LOGON" NOT Account_Domain="CA" NOT Source_Network_Address="-" ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ Account_Name=$username$ Keywords=$auditstatus$
+          | timechart span=5m count by Source_Network_Address</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <chart>
+        <title>Gold Ticket Attack Trend by Client Address</title>
+        <search>
+          <query>index="glxdt_windows_logs" EventCode=4769 
+        | timechart span=5m count by Client_Address</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Gold Ticket Requests by Client Address</title>
+        <search>
+          <query>index="glxdt_windows_logs" EventCode=4769 
+        | stats count by Client_Address 
+        | sort - count
+        | head 5</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>Gold Ticket Requests by Account Name</title>
+        <search>
+          <query>index="glxdt_windows_logs" EventCode=4769 
+        | stats count by Account_Name 
+        | sort - count
+        | head 5</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <chart>
+        <title>Stats by Origin</title>
+        <search>
+          <query>index="glxdt_windows_logs"  (EventCode=4624 Logon_Type=3) OR (EventCode=4625 Logon_Type=3) Authentication_Package="NTLM" NOT Account_Name="ANONYMOUS LOGON" NOT Account_Domain="CA" NOT Source_Network_Address="-" ComputerName=* Workstation_Name=* Source_Network_Address=* Account_Name=* Keywords="*" 
+| eval Source=coalesce(Workstation_Name,Source_Network_Address) 
+| stats count(Source) as count by Source 
+| sort - count
+| head 5</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.drilldown">none</option>
+        <option name="height">371</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <chart>
+        <title>Stats by User</title>
+        <search>
+          <query>index="glxdt_windows_logs" (EventCode=4624 Logon_Type=3) OR (EventCode=4625 Logon_Type=3) Authentication_Package="NTLM" NOT Account_Name="ANONYMOUS LOGON" NOT Account_Domain="CA" NOT Source_Network_Address="-" ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ Account_Name=$username$ Keywords=$auditstatus$
+          | stats count(Account_Name) as count by Account_Name
+          | sort - count
+          | head 5</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.drilldown">none</option>
+        <option name="height">370</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>PtH Activities</title>
+        <search>
+          <query>index="glxdt_windows_logs" (EventCode=4624 Logon_Type=3) OR (EventCode=4625 Logon_Type=3) Authentication_Package="NTLM" NOT Account_Name="ANONYMOUS LOGON" NOT Account_Domain="CA" NOT Source_Network_Address="-" ComputerName=$computername$ Workstation_Name=$workstationname$ Source_Network_Address=$sourcenetworkaddress$ Account_Name=$username$ Keywords=$auditstatus$
+          | eval Account_Domain=mvindex(Account_Domain, 1)
+          | eval Account_Name=mvindex(Account_Name, 1)
+          | table _time,Keywords,Failure_Reason,Account_Domain,Account_Name,ComputerName,Source_Network_Address,Source_Port,Workstation_Name
+          | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>Gold Ticket Attack Detailed Log</title>
+        <search>
+          <query>index="glxdt_windows_logs" EventCode=4769 
+        | table _time, ComputerName, Account_Name, Service_Name, Client_Address, Client_Port, Ticket_Encryption_Type, Failure_Code, Request_ticket_hash, Response_ticket_hash
+        | head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+          <refresh>10m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">50</option>
+        <option name="drilldown">row</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
